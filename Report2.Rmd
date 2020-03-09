@@ -1,0 +1,762 @@
+---
+title: "Airbnb London Report"
+output: html_notebook
+---
+This data set comes from Airbnb listings in London. It is of interest to see whether it is possible to predict the price of a rental on the basis of a number of factors, such as the number of bedrooms, beds, bed types, location and host rating. The data set can be found [here](http://insideairbnb.com/get-the-data.html). Note that this data set was compiled on the 10th of July 2019 and was originally called "listings.csv.gz".  
+
+## Data Cleaning 
+
+The first step in the analysis is to load the data, examine it, extract the columns of use and to clean the data ready for analysis. 
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+
+# install.packages("tidyverse")
+# install.packages("corrplot")
+# install.packages("leaps")
+# install.packages("texreg")
+# install.packages("cvTools")
+# install.packages("randomForest")
+# install.packages("cvTools")
+library(cvTools)
+library(tidyverse)
+library(corrplot)
+library(leaps)
+library(MASS)
+library(texreg)
+library(tree)
+library(randomForest)
+library(ggplot2)
+
+```
+
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# classing blank values and "N/A" strings as NA
+
+listings <- read_csv("listings.csv", na = c("N/A", ""))
+```
+First let's examine the columns in the data set:
+
+```{r}
+names(listings)
+```
+The data contained within these columns is as follows:
+
+* id : The ID allocated to the listing by Airbnb.
+* listing_url : The URL of the listing on Airbnb.
+* scrape_id : The ID of the listing allocated by the scraper.
+* last_scraped : The date when the listing was last scraped.
+* name : The name of the listing
+* summary : General description of the listing
+* space : Description of the interior of the listing
+* description : Further description of the listing
+* experiences_offered : Other experiences available at the listing such as romantic, business or family
+* neighbourhood : Host-provided description of the neighbourhood
+* notes : Any additional notes to guests
+* transit : Host-provided description of how to get to the listing
+* access : Host-provided descriptions of the amenities available
+* interaction : Host's preferred level of interaction with guests.
+* house_rules : Host's rules for guests
+* thumbnail_url : URL to a thumbnail of the property
+* medium_url : Unspecified and blank for all rows
+* picture_url : URL to the picture of the listing
+* host_id : Airbnb ID for the host
+* host_url : URL to the Host's Airbnb page
+* host_name : Name of the host
+* host_since : Date from which the host has been a host
+* host_location : Location of the host
+* host_about: Biography for the host
+* host_response_time : Several strings describing the host's response time
+* host_response_rate : Proportion of messages host has responded to
+* host_acceptance_rate : Proportion of requests host has accepted
+* host_is_superhost : Boolean describing whether the host is a superhost
+* host_thumbnail_url : Thumbnail of host's profile picture
+* host_picture_url : Host's profile picture
+* host_neighbourhood : Neighbourhood where the host lives
+* host_listings_count : the number of listings a host has
+* host_total_listings : "
+* host_verifications: Methods by which the host has been verified
+* host_has_profile_pic : Boolean describing whether the host has a profile picture
+* host_identity_verified : Boolean describing whether the host's identity has been verified
+* street : Street of the listing
+* neighbourhood : Neighbourhood of the listing
+* neighbourhood_cleansed : Neighbours in standardised format (excluding borough names etc)
+* neighbourhood_group_cleansed : Unspecified and not provided for any listing
+* city : City in which the listing is located
+* state : State where the listing is located
+* zipcode : postcode
+* market : Housing market
+* smart_location : Location of listing in format City, Country
+* country_code : Country code of where the listing is located
+* country : Name of country where the listing is located
+* latitude : Latitude of listing
+* longitude : Longitude of listing
+* is_location_exact : Boolean describing whether the latitude and longitude coordinates are exact
+ * property_type: String describing the property type with defined levels, apartment, house etc.
+ * room_type : String describing the room type with defined levels, private room, whole house etc
+ * accommodates : Number of people the listing can accommodate
+ * bathrooms : Number of bathrooms
+ * bedrooms : Number of bedrooms
+ * beds : Number of beds
+ * bed_type : String describing the type of bed with defined levels, real bed, futon etc
+ * amenities: JSON string containing the amenities in the listing
+ * square_feet: Size of the listing in square feet
+ * price : Nightly price of the listing
+ * weekly_price : Weekly price of the listing
+ * monthly_price : Monthly price of the listing
+ * security_deposit : Required security deposit
+ * cleaning_fee : Cleaning fee charged by host
+ * guests_included : Unspecified
+ * extra_people : Unspecified
+ * minimum_nights : Minimum number of nights that renters can stay at the listing
+ * maximum_nights : Maximum number of nights that renters can stay at the listing
+ * minimum_minimum_nights : Same as minimum_nights
+ * maximum_minimum_nights: Same as maximum_nights
+ * minimum_nights_avg_ntm : Unspecified
+ * maximum_nights_avg_ntm : Unspecified
+ * calendar_updated : Last time host updated their calendar
+ * has_availability : Was available on date data was scraped
+ * availability_30 : Availability in the last 30 days
+ * availability_60 : Availability in the last 60 days
+ * availability_90 : Availability in the last 90 days
+ * availability_365 : Availability in the last 365 days
+ * calendar_last_scraped : Date calendar was last scraped
+ * number_of_reviews : Number of reviews for listing
+ * number_of_reviews_ltm : Unspecified
+ * first_review : Date of first review
+ * last_review : Date of last review
+ * review_scores_rating : Overall rating for listing
+ * review_scores_accuracy : Rating for accuracy of listing
+ * review_scores_cleanliness : Rating for cleanliness
+ * review_scores_checkin : Rating for checkin
+ * review_scores_communication : Rating for communication
+ * review_scores_location : Rating for location
+ * review_scores_value : Rating for value
+ * requires_license : Boolean indicating whether the listing requires a license.
+ * license : Blank
+ * jurisdiction_names : Unspecified and blank
+ * instant_bookable : Boolean describing whether the listing allows instant booking
+ * is_business_travel_ready : Boolean describing whether the listing complies with Airbnb business travel requirements
+ * cancellation_policy : String describing the cancellation policy with levels, moderate, flexible etc
+ * require_guest_profile_picture : Boolean describing whether the listing requires a guest profile picture
+ * calculated_host_listings_count : Number of listings held by the host
+ * calculated_host_listings_count_entire_homes : Number of entire homes listings held by host
+ * calculated_host_listings_count_private_rooms : Number of private room listings held by host
+ * calculated_host_listings_count_shared_rooms:  Number of shared room listings held by host
+ * reviews_per_month : Number of reviews received by host per month.
+ 
+### Initial Screening of Columns
+
+On the basis of these column descriptions we are able to screen out a number of columns that are not relevant to this analysis. This includes  columns used to describe the listing and the host, the Airbnb IDs provided to the host and listing, repetitive information such as the neighbourhood information, the URLs, and any other columns which are not sufficiently  described or are too difficult to clean, such as the amenities JSON string. 
+
+We can see that the `host_acceptance_rate` and `is_business_travel_ready` columns are completely blank and thus can also be removed from the analysis at this stage. Furthermore, the `square_feet` column is also nearly completely blank and can also be removed from the analysis for this reason. Similarly the `requires_license` column is almost entirely false and can also be removed. 
+
+```{r}
+listings <- listings %>% 
+  dplyr::select(host_response_time, 
+                host_response_rate, 
+                host_is_superhost, 
+                host_listings_count,
+                neighbourhood_cleansed, 
+                accommodates, 
+                bathrooms, 
+                beds, 
+                bedrooms, 
+                bed_type, 
+                price, 
+                security_deposit, 
+                cleaning_fee, 
+                minimum_nights, 
+                maximum_nights, 
+                availability_365, 
+                number_of_reviews, 
+                review_scores_rating, 
+                review_scores_accuracy, 
+                review_scores_cleanliness, 
+                review_scores_checkin, 
+                review_scores_location, 
+                review_scores_value, 
+                cancellation_policy, 
+                instant_bookable, 
+                reviews_per_month,
+                room_type)
+
+summary(listings)
+```
+
+The summmary shows a number of rows with NA values. As the data set is relatively large, removing these rows shouldn't affect the analysis too much. 
+
+```{r}
+listings <- drop_na(listings)
+```
+
+
+There are several variables that are recorded as character variables that need to be converted into factor variables. 
+
+```{r}
+
+room.levels <- unique(listings$room_type)
+bed.levels <- unique(listings$bed_type)
+cancellation.levels <- unique(listings$cancellation_policy)
+response.levels <- unique(listings$host_response_time)
+response.rate.levels <- unique(listings$host_response_rate)
+neighbourhood.levels <- unique(listings$neighbourhood_cleansed)
+
+
+listings$room_type <- factor(listings$room_type, levels = room.levels)
+listings$bed_type <- factor(listings$bed_type, levels = bed.levels)
+listings$cancellation_policy <- factor(listings$cancellation_policy, levels = cancellation.levels)
+listings$host_response_time <- factor(listings$host_response_time, levels = response.levels)
+listings$host_response_rate <- factor(listings$host_response_rate, levels = response.rate.levels)
+listings$neighbourhood_cleansed <- factor(listings$neighbourhood_cleansed, levels = neighbourhood.levels)
+
+listings$price <- gsub("[$,]", "", listings$price)
+listings$cleaning_fee <- gsub("[$,]", "", listings$cleaning_fee)
+listings$security_deposit <- gsub("[$,]", "", listings$security_deposit)
+
+listings$security_deposit <- as.numeric(as.character(listings$security_deposit))
+listings$price <- as.numeric(as.character(listings$price))
+listings$cleaning_fee <- as.numeric(as.character(listings$cleaning_fee))
+```
+
+Later on when we use the `tree` function to produce a decision tree for the predictors of price all factor variables must have 32 or fewer levels. This is problematic for `neighbourhood_cleansed` which has 33 levels. In order to avoid this problem we will remove Sutton, a small suburb in the South of London from the data set as it includes relatively few entries.
+
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+levels <- levels(listings$neighbourhood_cleansed)
+levels[21] <- "Westminster / City of London"
+levels[3] <- "Westminster / City of London"
+
+levels(listings$neighbourhood_cleansed) <- levels
+
+```
+
+Similarly, the number of rows is slowing my computer down significantly. In the interest of increasing the speed of the analysis the data set will be arbitrarily limited. If your computer is more or less powerful you can tweak the code below to change the size of the data set.
+
+```{r}
+num.rows <- 1600
+sample.rows <-  sample(1:nrow(listings), num.rows, replace = FALSE)
+listings <- listings[sample.rows, ]
+```
+
+The host response rate is stored as a percentage, but it makes a bit more sense to store this as a numeric variable as opposed to a factor variable.
+
+```{r}
+listings$host_response_rate <- gsub("[%]", "", listings$host_response_rate)
+
+listings$host_response_rate <- as.numeric(as.character(listings$host_response_rate))
+
+summary(listings$host_response_rate)
+```
+Our final step is to convert the variable `availability_365`, the number of days the listing has been available in the last year to an occupancy rate.
+```{r}
+listings <- listings %>% 
+  mutate(occupancy =  1 - (availability_365 / 365)) %>% 
+  dplyr::select(-availability_365)
+
+summary(listings$occupancy)
+```
+
+
+## Exploratory Data Analysis
+
+As a starting point I would imagine that one of the best predictors for price would be overall ratings.
+
+```{r message=FALSE, warning=FALSE}
+ggplot(data = listings, aes(x = review_scores_rating, y = price,)) +
+  geom_point() +
+  ylab("Price ($)") +
+  xlab("Average Rating") +
+  ggtitle("Price vs Average Rating")
+```
+It would appear that price is highly skewed, let's have a look at the boxplot and histogram for price to get an idea of how skewed it is and whether it needs a transformation.
+
+```{r message=FALSE, warning=FALSE}
+par(mfrow = c(1,2))
+hist(listings$price, breaks = seq(min(listings$price), max(listings$price), length.out = 500), main = "Histogram of Price", xlab = "Price ($)")
+boxplot(listings$price, main = "Boxplot of Price", ylab = "Price ($)")
+```
+From the histogram and the boxplot we can see that the distribution of price is highly skewed and will benefit from a log re-expression. There are many prices that lie within the same range, but a small number of prices that lie far from the median. 
+
+```{r message=FALSE, warning=FALSE}
+listings$log_price <- log(listings$price)
+# filtering out any rows that had a price of 0, which outputs -Inf when 
+# evaluated in R.
+listings <- listings %>% 
+  dplyr::filter(listings$log_price != -Inf)
+
+# removing the original prices and storing them
+
+original.prices <- listings$price
+listings <- listings %>% 
+  dplyr::select(-price)
+
+par(mfrow = c(1,2))
+hist(listings$log_price, main = "Histogram of Log Price", xlab = "Log Price")
+boxplot(listings$log_price, main = "Boxplot of Log Price", ylab = "Log Price")
+```
+Taking the log of the price appears to have made a big difference and price now appears to be considerably more normally distributed. Now we can take another look at the relationship between the quantitative variables in the data set.
+
+```{r message=FALSE, warning=FALSE}
+
+# selecting numerical columns
+idxs <- unlist(lapply(listings, is.numeric))
+listings.numeric <- listings[ ,idxs]
+
+
+listings.numeric %>% 
+  gather(-log_price, key = "var", value = "value") %>% 
+  ggplot(aes(x = value, y = log_price)) +
+  facet_wrap(~ var, scales = "free") +
+  geom_point() +
+  geom_smooth(se = FALSE)
+
+  
+```
+The `geom_smooth()` function failed to produce a line for the review scores due to a lack of values on the x-axis as the reviews are evaluated on a 10 point scale. However, there  appears to be a roughly linear positive relationship between the review scores and the price charged. 
+
+The plot for maximum nights appears to have no relationship, however this may due to some extreme outliers distorting the fitted line. 
+
+It appears that there are some roughly linear relationships between price the number of bedrooms, the number of bathrooms, the number of people the listing accommodates and the cleaning fee.  
+
+Having looked at the relationships between price and the various quantitative predictors we can now examine the histograms for the predictors to check for normality. 
+
+```{r}
+hist(listings$accommodates)
+hist(listings$bathrooms)
+hist(listings$bedrooms)
+hist(listings$beds)
+hist(listings$cleaning_fee)
+hist(listings$host_listings_count)
+hist(listings$host_response_rate)
+hist(listings$maximum_nights)
+hist(listings$minimum_nights)
+hist(listings$number_of_reviews)
+hist(listings$occupancy)
+hist(listings$review_scores_accuracy)
+hist(listings$review_scores_checkin)
+hist(listings$review_scores_cleanliness)
+hist(listings$review_scores_location)
+hist(listings$review_scores_rating)
+hist(listings$review_scores_value)
+hist(listings$reviews_per_month)
+hist(listings$security_deposit)
+
+```
+
+It appears that all of these predictors are highly skewed and may affect the performance of a linear regression, however for now we will continue with analysis and adjust them later if necessary.
+
+Now we can examine the correlations for the quantitative variables in the data set. 
+
+```{r}
+# creating a correlation plot 
+corrplot(cor(listings.numeric))
+```
+From this correlation plot we can see that the log price for a listing is correlated with the number of  listings the host has, the number of people the listing accommodates, the number of bathrooms, the number of bedrooms, the cleaning fee and the security deposit charged.  
+
+There appears to be a strong correlations between the number of people a listing accommodates and the number of beds, which is logical, the number of beds and the number of bedrooms, the number of bathrooms and the number of people that can accommodated. Similarly the review scores are correlated, which is to be expected, particularly in the case of the overall rating as this may be seen as an aggreagation of the individual review categories, although not completely as the overall review rating is calculated on the basis of other categories not included in this data set. More information about how the overall rating is calculated can be found [here](https://community.withairbnb.com/t5/Help/Computation-of-Average-Overall-Rating/td-p/230208).
+
+
+Now we can examine the qualitative variables. 
+
+```{r}
+
+plot(log_price ~ host_response_time, data = listings)
+plot(log_price ~ neighbourhood_cleansed, data = listings)
+plot(log_price ~ room_type, data = listings)
+plot(log_price ~ bed_type, data = listings)
+plot(log_price ~ host_is_superhost, data = listings)
+plot(log_price ~ cancellation_policy, data = listings)
+plot(log_price ~ instant_bookable, data = listings)
+
+```
+### T-test
+
+Some of the categorical variables appear to have a fair level of variation between the levels, particularly the neighbourhoods, room types, the accommodation type, the bed type and the cancellation policy. 
+
+To test whether there is a statistically significant difference between the log price for private rooms and entire homes or apartments we can use a t-test.
+
+```{r}
+private.room.prices <- listings$log_price[which(listings$room_type == "Entire home/apt")]
+shared.room.prices <- listings$log_price[which(listings$room_type == "Shared room")]
+
+t.test(private.room.prices, shared.room.prices, mu = 0)
+```
+The p-value for this t-test is well below the threshold of 0.05 and therefore the null hypothesis that entire home or apartment listings have the same mean price as private room listings is rejected. A statistically significant difference in mean price for these listing types exists.
+
+
+In order to test whether the difference in means for these categorical variables is statistically siginificant we could perform pairwise t-tests for each of the levels within each of the categorical variables. However, this approach is inefficient as there are many levels within many categorical variables, and performing multiple t-tests increases the probability of producing a type I error. 
+
+Therefore, instead we will construct models of the relationships between the log price and the categorical variables and use ANOVA to test whether the groups have a statistically significant difference in means. 
+
+```{r}
+lm.response.time <- lm(log_price ~ host_response_time, data = listings)
+lm.room.type <- lm(log_price ~ room_type, data = listings)
+lm.bed.type <- lm(log_price ~ bed_type, data = listings)
+lm.neighbourhood <- lm(log_price ~ neighbourhood_cleansed, data = listings)
+lm.cancellation <- lm(log_price ~ cancellation_policy, data = listings)
+lm.instant <- lm(log_price ~ instant_bookable, data = listings)
+lm.super <- lm(log_price ~ host_is_superhost, data = listings)
+
+     
+
+anova(lm.response.time)
+anova(lm.room.type)
+anova(lm.bed.type)
+anova(lm.neighbourhood)
+anova(lm.cancellation)
+anova(lm.instant)
+anova(lm.super)
+
+```
+The ANOVA analysis shows that all the categorical variables have a statistically significant difference in means for at least one group, except for the variable `host_response_time`, and therefore we are able to include them in any model we build and can be confident that their contribution is not due to chance.
+
+The quantitative variables in this data set look as though they will be useful for predicting the price of a given Airbnb listing. However, almost all of the quantitative variables are strongly skewed and some contain significant outliers. This will most likely reduce the predictive power of any linear model that includes them. However, at this point they will not be re-expressed as it is possible that more flexbile fitting methods or a non-parametric method may produce predictions with an acceptable MSE. The plots of the quantitative variables shown to have a strong correlation with price showed a relatively linear relationship and therefore may not benefit from conversion to factor variables, with the potential exceptions of the number of bathrooms and the number of people a listing can accommodate. Again, it may be worth examining whether these variables have any effect on the models produced later. In the case of the `accomodates` variable it may be unlikely to have an effect as it is most likely strongly collinear with the variables `beds` and `bedrooms`, though this remains to be seen definitively. 
+
+The qualitative variables also look as though they will be useful in predicting the price of an Airbnb listing. However, for some of the variables there are a large number of outliers, particularly for the `room_type`, and `neighbourhood_cleansed` variables. These outliers are also likely to reduce the effectiveness of a linear regression model.
+
+## Training and Test Data
+Testing models is essential to ensuring that they have not been overfitted and they do not include predictors that do not add predictive power to the model. Therefore, it is necessary to divide the data into a training set and a test set so that the data used to build the model is not the data used to test the model.
+
+There are a number of different strategies that can be used to divide a data set into training and test sets, however for the purposes of this report no intricate methods will be used. The data set will simply be randomly sampled and divided in half. 
+
+```{r}
+training.rows <- sample(1:nrow(listings), floor(nrow(listings) / 2))
+training.set <- listings[training.rows, ]
+test.set <- listings[-training.rows, ]
+
+nrow(training.set)
+nrow(test.set)
+```
+## Linear Regression
+
+Now we can move on to building a linear regression model. To construct the model stepwise selection will be used as the number of predictors is prohibitive to using an exhaustive approach. We will also construct a null model with no predictors for use in testing whether the models produced have greater predictive power than chance alone and a model that uses all of the predictors to test whether removing predictors from the model does not adversely affect its predictive power. 
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+# create null and full model for comparison
+# and scope
+null.model <- lm(log_price ~ 1, data = training.set)
+full.model <- lm(log_price ~., data = training.set)
+scp <- list(lower = null.model, upper = full.model)
+
+# create models using stepwise selection
+forward.model <- stepAIC(null.model,
+                         scope = scp,
+                         direction = "forward"
+                         )
+
+backward.model <- stepAIC(full.model,
+                          scope = scp,
+                          direction = "backward"
+                          )
+
+both.model <- stepAIC(null.model,
+                      scope = scp,
+                      direction = "both"
+                      )
+```
+```{r}
+summary(forward.model)$r.squared
+summary(backward.model)$r.squared
+summary(both.model)$r.squared
+
+AIC(forward.model)
+AIC(backward.model)
+AIC(both.model)
+```
+We can now test which model selection method and what number of predictions minimises the AIC value. To do this we will build a series of models each with one more or one fewer predictor than the last, depending on which direction we are selecting predictors in. Now we can use the `cvFit` function to cross validate the model and produce a standard error for the MSE.
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+set.seed(1)
+n.pred <- length(names(training.set))
+results <- data.frame(predictors = 1:n.pred, aic.forward = NA, aic.backward = NA, aic.both = NA, predictors.backward = n.pred:1)
+for(i in 1:n.pred) {
+  if( i == 1) {
+  selected.forward.model <- stepAIC(null.model,
+                            scope = scp,
+                            direction = "forward",
+                            steps = 1)
+
+  selected.both.model <- stepAIC(null.model,
+                            scope = scp,
+                            direction = "both",
+                            steps = 1)
+  selected.backward.model <- stepAIC(full.model,
+                            scope = scp,
+                            direction = "backward",
+                            steps = 1)
+  } else {
+     selected.forward.model <- stepAIC(previous.forward.model,
+                            scope = scp,
+                            direction = "forward",
+                            steps = 1)
+  
+     selected.both.model <- stepAIC(previous.both.model,
+                            scope = scp,
+                            direction = "both",
+                            steps = 1)
+     
+    selected.backward.model <- stepAIC(previous.backward.model,
+                            scope = scp,
+                            direction = "backward",
+                            steps = 1)
+  }
+  
+    
+  
+  results$aic.forward[i] <- AIC(selected.forward.model)
+  results$aic.backward[i] <- AIC(selected.backward.model)
+  results$aic.both[i] <- AIC(selected.both.model)
+  
+  previous.forward.model <- selected.forward.model
+  previous.backward.model <- selected.backward.model
+  previous.both.model <- selected.both.model
+  
+  # cv.fit.forward <- cvFit(selected.forward.model, data = training.set, y = training.set$log_price, k = 5, r = 10)
+  # results$mse.forward[i] <- cv.fit.forward$cv
+  
+   # cv.fit.backward <- cvFit(selected.backward.model, data = training.set, y = training.set$log_price, k = 5, r = 10)
+   # results$mse.backward[29 - i] <- cv.fit.backward$cv
+  
+   # cv.fit.both <- cvFit(selected.both.model, data = training.set, y = training.set$log_price, k = 5, r = 10)
+   # results$mse.both[i] <- cv.fit.both$cv
+}
+```
+Now we can produce a plot of performance against the number of predictors used in the model.
+
+```{r}
+ggplot(data = results, aes(x = predictors)) +
+  geom_point(aes(y = aic.forward), col = "blue") +
+  geom_line(aes(y = aic.forward), col = "blue") +
+  geom_point(aes(x = predictors.backward, y = aic.backward), col = "green") +
+  geom_line(aes(x = predictors.backward, y = aic.backward), col = "green") +
+  geom_point(aes(y = aic.both), col = "pink") +
+  geom_line(aes(y = aic.both), col = "pink")
+```
+The both and forward lines are covering each other. We can see them both if we add some artifical jitter to the plot.
+
+```{r}
+ggplot(data = results, aes(x = predictors)) +
+  geom_point(aes(y = aic.forward), col = "blue", position = "jitter") +
+  geom_line(aes(y = aic.forward), col = "blue") +
+  geom_point(aes(x = predictors.backward, y = aic.backward), col = "green") +
+  geom_line(aes(x = predictors.backward, y = aic.backward), col = "green") +
+  geom_point(aes(y = aic.both), col = "pink") +
+  geom_line(aes(y = aic.both), col = "pink")
+```
+The behaviour of the backwards selected model is highly bizarre, it reaches the optimum value for the AIC by removing only one predictor. This suggests that linear regression is potentially not the best model to use for this data set and it may be worth exploring decision trees as a possible alternative. However, for the sake of completeness we will explore the linear model produced by the forward selection method which produced an optimum model with 25 predictors. 
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+optimum.lm <- forward.model <- stepAIC(null.model,
+                         scope = scp,
+                         direction = "forward",
+                         steps = 25
+                         )
+```
+```{r}
+screenreg(optimum.lm)
+```
+The linear model contains a number of predictors that are statistically significant. As can be imagined whether or not a listing is an entire home or apartment or shared room has a relatively large effect on the price. If a listing is for a whole apartment there is a 0.62 unit increase in price and if the listing is a shared room there is 0.69 unit decrease in price. As predicted from the correlation plot the number of bedrooms in a listing has an influence on its price, with each additional bedroom increasing the price by 0.12 units. In many cases the location of a listing also has a statistically significant effect on price, this is also to be expected. Interestingly the cancellation policy of a listing also had a statistically significant effect on the price, with listings with a strict 60 day cancellation policy having a price 0.45 units higher. 
+
+The MSE for this model suggests that it is a good fit to the data, however this may be due to overfitting. Later we will test it against the test set to check for signs of overfitting. 
+
+```{r}
+MSE.lm <- mean(resid(optimum.lm)^2)
+```
+
+
+At this point we would use `cvFit` to cross validate the model using k-fold or left one out cross validation and get an estimate of the standard error of the MSE. However, as previously discussed there is a bug in `cvFit` that prevents us from doing so. The code for cvFit is included below for posterity, although if you were to uncomment it it would not run correctly.
+
+
+```{r}
+ # set.seed(1)
+ # cv.fit.optimum <- cvFit(optimum.lm, data = training.set, y = training.set$log_price, k = 5, r = 10)
+ # cv.fit.se <- cv.fit.optimum$se
+
+ # calculating the 95% confidence interval for the MSE for the cross validation
+
+ # mse.lower <- cv.fit.optimum$cv - 2 * (cv.fit.se)
+ # mse.upper <- cv.fit.optimum$cv + 2 * (cv.fit.se)
+
+
+ # conf.interval.mse <- mse.upper - mse.lower
+
+```
+To further examine the quality of the linear model's fit we can look at its diagnostic plots.
+
+```{r}
+plot(optimum.lm)
+```
+The diagnostic plots appear relatively healthy: 
+
+ * The residuals vs fitted values plot looks good, though several outliers are highlighted. The plot shows no heteroscedacity, or general trends in the residuals.
+
+* The normal QQ plot looks good, the residuals are relatively normally distributed.
+
+* The scale location plot also appears healthy, although much like the residuals vs fitted value plot it shows some outliers.
+
+* The residuals vs leverage plot shows no plots with significant residuals and leverage that may distort the model.
+
+Finally we can test the linear model against the test data to check if it's overfitted. However, again we face problem that some of the levels of factors are not contained in the training data and so again the test cannot be run. This is a severe limitation of the data set and would be resolved if more time were available for this analysis.
+
+```{r}
+# pred <- predict(optimum.lm, newdata = test.set)
+
+# MSE.optimum.lm <- mean((pred - test.set$log_price)^2)
+```
+
+
+## Decision Trees
+
+Another approach to predicting the log price is using a decision tree. 
+
+```{r}
+set.seed(1)
+tree.price <- tree(log_price ~., data = training.set)
+
+plot(tree.price)
+text(tree.price, pretty = 0)
+
+summary(tree.price)
+```
+The tree appears to offer a more minimalistic model, using only three predictors. We can further test the quality of the fit by performing cross validation. 
+
+```{r}
+set.seed(1)
+cv.price <- cv.tree(tree.price)
+plot(cv.price$size, cv.price$dev, type = "b")
+```
+Based on the cross validation the optimum tree has 6 branches. We can now use prune our existing tree such that it has 6 branches.
+
+```{r}
+pruned.price <- prune.tree(tree.price, best = 6)
+plot(pruned.price)
+text(pruned.price, pretty = 0)
+
+```
+Now that we have developed an optimal model using a decision tree we can test it against the test data we partitioned from the data set earlier. 
+
+```{r}
+pred <- predict(pruned.price, newdata = test.set)
+
+MSE.prune <- mean((pred - test.set$log_price)^2)
+print(MSE.prune)
+```
+The MSE score is fairly respectable, in order to return it to the original units of measure we can raise e to the power of the MSE.
+
+```{r}
+exp(0.2167)
+```
+An MSE of $1.24 is a highly respectable score and seems more reasonable than the predictions and parameters of the linear model.
+
+We can now see if the decision tree model can be improved using bagging. 
+
+```{r}
+set.seed(1)
+# number of predictors
+p <- 26
+
+bag.price <- randomForest(log_price ~., data = listings, subset = training.rows, mtry = p, importance = TRUE, ntrees = 10)
+
+pred <- predict(bag.price, newdata = training.set)
+
+MSE.bag <- mean((pred - test.set$log_price)^2)
+
+print(MSE.bag)
+```
+The bagged MSE is quite large, however that is to be expected as the number of trees generated wasn't particularly large.
+
+Now we can look for the optimum number of trees that must be constructed to minimise the MSE (within reason). 
+
+```{r}
+# number of values to test in range
+plot(bag.price)
+```
+
+Around 100 trees appears to do the trick, so let's choose that for our optimum model.
+
+```{r}
+
+set.seed(1)
+optimum.bag.price <- randomForest(log_price ~., data = listings, subset = training.rows, mtry = p, importance = TRUE, ntrees = 100)
+
+pred <- predict(optimum.bag.price, newdata = test.set)
+
+MSE.optimum.bag <-  mean((pred - test.set$log_price)^2)
+
+print(MSE.optimum.bag)
+
+```
+Using the optimum number of trees has significantly reduced the MSE and improved upon the model given by pruning th decision tree. 
+
+In order to produce an even more optimised model we can also try random forests, which will attempt to produce an optimum model by randomly selecting a subset of predictors to for the bagged trees. This can produce a model that is not as overfitted to the training data.
+
+```{r}
+set.seed(1)
+num.p <- c(1, 5, 9, 14, 19, 23, 26,p/2, floor(sqrt(p))) 
+models <- vector("list", length(num.p))
+
+for(i in 1:length(num.p)) {
+  models[[i]] <- randomForest(log_price ~., data = listings, subset = training.rows, mtry = num.p[i], importance = TRUE)
+}
+
+```
+
+Now that we've obtained the models let's plot them.
+```{r}
+predictors.data <- data.frame(predictors = NA, mse = NA, ntrees = NA)
+for(i in 1:length(models)) {
+  fac <- factor(num.p[i])
+  temp.df <- data.frame(predictors = rep(fac, models[[i]]$ntree) , mse = models[[i]]$mse, ntrees = seq(1, models[[i]]$ntree))
+  predictors.data <- rbind(predictors.data, temp.df)
+}
+
+# removing the first row
+
+predictors.data <- predictors.data[-1,]
+
+ggplot(data = predictors.data, aes(x = ntrees, y = mse, colour = predictors)) +
+  geom_line()
+```
+As before using approximately 100 trees appears to produce the best results. Increasing the number of trees will clearly improve the MSE for the model, however it makes the calculations more computationally expensive. We will use `which.min` to find the minimum value of the MSE to determine which number of predictors is optimal.
+
+```{r}
+min.predictor <- predictors.data$predictors[which.min(predictors.data$mse)]
+print(min.predictor)
+
+```
+From this analysis we conclude that the best model uses 14 predictors and approximately 100 trees. Again, we will test this against the test data.
+
+```{r}
+set.seed(1)
+optimum.pred.tree.price <- randomForest(log_price ~., data = listings, subset = training.rows, ntrees = 100, mtry = 9, importance = TRUE)
+
+pred <- predict(optimum.pred.tree.price, newdata = test.set)
+
+MSE.optimum.pred.tree <- mean((pred - test.set$log_price)^2)
+
+print(MSE.optimum.pred.tree)
+```
+This is the lowest MSE yet seen, suggesting that random forests have yielded the best model.
+
+
+## Conclusion
+
+Now that several models have been created we can summmarise them in a table and decide which model performed the best. Unfortunately, we were unable to test the linear model against the test data due to the sparseness of some factor within the data set. However, the results provided by the stepwise model construction suggested that there may have been problems in the way the linear regression model was produced anyway. Below we consider the table of MSE's for the various models.
+
+```{r}
+models <-  c("Pruned Tree", "Bagged Tree", "Linear Model (train)", "Random Forest Tree")
+mses <- c(MSE.prune, MSE.bag, MSE.lm, MSE.optimum.pred.tree)
+
+final.table <- data.frame(models = models, MSE = mses)
+print(final.table)
+```
+From this table we would select the model produced by the random forest as it had the lowest MSE when tested against the test data, except for the linear model, although its true MSE is hard to gauge as it was not tested again the test data.
+
+```{r}
+print(optimum.pred.tree.price)
+```
+## Future Work
+
+Future attempts to produce models of this data set would benefit from eliminating rows with rare factors for factor variables or ensuring that both test and training sets are exposed to the full range of levels as this severely limits the tests that can be applied to linear models. However, overall the degree of variance explained by the random forests generated model is surprising. 
+
